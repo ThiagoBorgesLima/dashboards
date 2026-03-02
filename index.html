@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dashboard_vestimentas — CSV (Budget × Standard × Real)</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+  <style>
+    :root { --accent:#00A3E0; --dark:#0B1F2A; }
+    body { background:#f6f8fb; color:#13232b; }
+    .topbar { background: linear-gradient(90deg, var(--dark), #123447); color:white; border-bottom:4px solid var(--accent); }
+    .badge-accent { background: var(--accent); }
+    .card { border:0; border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
+    .kpi .display-6 { font-weight:750; letter-spacing:-0.02em; }
+    .nav-pills .nav-link.active { background: var(--accent); }
+    .small-muted { color:#62727b; font-size:.9rem; }
+    .footer-note { color:#6b7c85; font-size:.85rem; }
+    .mono { font-variant-numeric: tabular-nums; }
+    th, td { vertical-align: middle; }
+    .table thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+    .delta-pos { font-weight:800 !important; color:#067647 !important; text-decoration:none !important; }
+    .delta-neg { font-weight:400 !important; color:#b42318 !important; text-decoration:underline !important; }
+    .table .delta-pos { font-weight:800 !important; color:#067647 !important; text-decoration:none !important; }
+    .table .delta-neg { font-weight:400 !important; color:#b42318 !important; text-decoration:underline !important; }
+    code { background:#eef3f7; padding:.1rem .3rem; border-radius:.35rem; }
+  
+    /* === Tabela Detalhe por Posição — refinamento visual === */
+
+    /* Freeze (sticky) first TWO columns: Posição + Valor */
+
+    .table-detail th:nth-child(1),
+    .table-detail td:nth-child(1) {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      background: #ffffff;
+    }
+
+    .table-detail th:nth-child(2),
+    .table-detail td:nth-child(2) {
+      position: sticky;
+      left: 180px; /* matches col 1 width */
+      z-index: 3;
+      background: #ffffff;
+    }
+
+    /* keep zebra/hover consistent on sticky columns */
+    .table-detail tbody tr:nth-child(odd) td:nth-child(1),
+    .table-detail tbody tr:nth-child(odd) td:nth-child(2) {
+      background: #fafbfd;
+    }
+    .table-detail tbody tr:hover td:nth-child(1),
+    .table-detail tbody tr:hover td:nth-child(2) {
+      background: #eef5f9;
+    }
+
+    /* header above body */
+    .table-detail thead th:nth-child(1),
+    .table-detail thead th:nth-child(2) {
+      z-index: 4;
+      background: #ffffff;
+    }
+
+
+    /* Arrow icon styling for deltas */
+
+    /* Delta chip (▲/▼) */
+    .delta-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:.25rem;
+      padding:0.08rem 0.42rem;
+      border-radius:999px;
+      font-weight:800;
+      font-size:0.78rem;
+      line-height:1.2;
+      border:1px solid transparent;
+    }
+    .chip-up{background: rgba(180,35,24,0.10); border-color: rgba(180,35,24,0.18); color:#b42318;}
+    .chip-down{background: rgba(6,118,71,0.10); border-color: rgba(6,118,71,0.18); color:#067647;}
+    .chip-flat{
+      background: rgba(98,114,123,0.10);
+      border-color: rgba(98,114,123,0.18);
+      color:#62727b;
+    }
+
+    .delta-icon {
+      display: inline-block;
+      width: 1.1em;
+      text-align: center;
+      margin-right: 0.15rem;
+      opacity: 0.9;
+    }
+
+    .table-detail th {
+      text-align: center;
+      vertical-align: middle;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #24343c;
+      white-space: nowrap;
+    }
+
+    .table-detail td {
+      text-align: center;
+      vertical-align: middle;
+      font-size: 0.85rem;
+      padding: 0.35rem 0.4rem;
+      white-space: nowrap;
+    }
+
+    .table-detail td.text-end {
+      text-align: center !important;
+    }
+
+    .table-detail tbody tr:nth-child(odd) {
+      background-color: #fafbfd;
+    }
+
+    .table-detail tbody tr:hover {
+      background-color: #eef5f9;
+    }
+
+    
+    /* column widths for sticky offsets */
+    .table-detail th:nth-child(1), .table-detail td:nth-child(1) { min-width: 180px; }
+    .table-detail th:nth-child(2), .table-detail td:nth-child(2) { min-width: 140px; }
+
+    .table-detail thead th {
+      border-bottom: 2px solid #d9e3ea;
+    }
+
+    .table-detail td,
+    .table-detail th {
+      border-color: #e3ebf1;
+    }
+
+
+    /* Chart fit: avoid clipping labels on the right/edges */
+    .chart-wrap { padding: 0 14px 0 6px; }
+    .plotly-graph-div { width: 100% !important; }
+
+/* Detalhe por posição: alinhamento e visual mais limpo */
+.table-detail th, .table-detail td { padding: 6px 8px; }
+.table-detail th { text-align: center; white-space: nowrap; }
+.table-detail td { vertical-align: middle; }
+.table-detail td:not(.text-end):not(.mono) { text-align: center; }
+/* garantir que colunas sticky mantenham fundo */
+.table-detail td.sticky-col, .table-detail td.sticky-col2 { background: #fff; }
+
+.neg { color:#c62828; font-weight:600; }
+.pos { color:#2e7d32; font-weight:600; }
+</style>
+</head>
+
+<body>
+  <div class="topbar py-3">
+    <div class="container-fluid px-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h1 class="h4 mb-0">dashboard_vestimentas — Vestimentas (Budget × Standard × Real)</h1>
+          <div class="small-muted text-white-50">Template padrão • Atualização via CSV • coluna <b>dif</b> removida</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge badge-accent rounded-pill">SWM theme</span>
+          <span class="badge text-bg-light rounded-pill mono" id="lastUpdate"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid px-4 py-4">
+    <div class="card p-3 mb-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-lg-7">
+          <label class="form-label mb-1">Atualizar dados (carregar CSV padrão)</label>
+          <input class="form-control" type="file" id="fileInput" accept=".csv,text/csv">
+          <div class="small-muted mt-1">
+            Aceita CSV com cabeçalho em 2 linhas (seções <code>Budget</code>, <code>Standard</code>, <code>Real</code> + meses) ou CSV plano com colunas <code>BUDGET_Jan</code>, <code>STANDARD_Jan</code>, <code>REAL_Jan</code>…<code>Dez</code>.
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="small-muted mb-1">Status</div>
+          <div class="mono" id="status">Carregado: dados iniciais do arquivo <code>dashboardbase150126.csv</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="dashArea">
+      <ul class="nav nav-pills mb-3" id="machineTabs" role="tablist"></ul>
+      <div class="tab-content" id="machineTabContent"></div>
+    </div>
+  </div>
+
+<script>
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+let RAW = {"MP1": {"monthly_cost": {"budget": {"Jan": 212534.83000000002, "Fev": 137749.08, "Mar": 250982.40000000002, "Abr": 52968.33, "Mai": 290776.21, "Jun": 138564.86000000002, "Jul": 290776.21, "Ago": 416542.76, "Set": 247116.72000000003, "Out": 87550.22, "Nov": 212534.83000000002, "Dez": 87550.22}, "standard": {"Jan": 87550.22, "Fev": 234297.22000000003, "Mar": 116688.94999999998, "Abr": 232709.48, "Mai": 107724.87, "Jun": 256194.32, "Jul": 290776.21, "Ago": 96627.82, "Set": 277140.93000000005, "Out": 135075.38999999998, "Nov": 247116.72000000003, "Dez": 52968.33}, "real": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, "rows": [{"posicao": "TELA FORMADORA", "valor": 159566.5, "vida_p": 55.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 7.0, "budget_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 1.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO PICK-UP", "valor": 52968.33, "vida_p": 33.0, "andritz": "Desenv", "albany": "Não", "voith": "Sim", "vest_budget": 12.0, "budget_counts": {"Jan": 1.0, "Fev": 1.0, "Mar": 1.0, "Abr": 1.0, "Mai": 1.0, "Jun": 1.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 1.0, "Dez": 1.0}, "standard_counts": {"Jan": 1.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 1.0, "Jun": 1.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 1.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO 2ª PRENSA", "valor": 34581.89, "vida_p": 58.0, "andritz": "Sim", "albany": "Não", "voith": "Sim", "vest_budget": 7.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA SUPERIOR", "valor": 43659.49, "vida_p": 294.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA SUPERIOR", "valor": 21762.39, "vida_p": 380.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA SUPERIOR", "valor": 20174.65, "vida_p": 329.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "5ª BATERIA SUPERIOR", "valor": 38447.57, "vida_p": 215.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "6ª BATERIA SUPERIOR", "valor": 20174.65, "vida_p": 360.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA INFERIOR", "valor": 43659.49, "vida_p": 360.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "2ª BATERIA INFERIOR", "valor": 43659.49, "vida_p": 365.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA INFERIOR", "valor": 30024.21, "vida_p": 380.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA INFERIOR", "valor": 43659.49, "vida_p": 269.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}]}, "MP3": {"monthly_cost": {"budget": {"Jan": 83792.41, "Fev": 229034.52000000002, "Mar": 81240.04, "Abr": 229034.52000000002, "Mai": 124654.66999999998, "Jun": 198398.91, "Jul": 106713.56999999999, "Ago": 229034.52000000002, "Set": 124654.67, "Out": 198398.91, "Nov": 54220.52, "Dez": 238197.45}, "standard": {"Jan": 134821.53, "Fev": 198398.91, "Mar": 206113.36, "Abr": 104161.2, "Mai": 236748.96999999997, "Jun": 227970.8, "Jul": 84856.13, "Ago": 198398.91, "Set": 175477.75, "Out": 238197.45, "Nov": 54220.52, "Dez": 289226.57}, "real": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, "rows": [{"posicao": "TELA FORMADORA", "valor": 121257.23, "vida_p": 45.0, "andritz": "Sim", "albany": "Sim", "voith": "Desenv", "vest_budget": 6.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 1.0, "Abr": 0.0, "Mai": 1.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO PICK UP", "valor": 54220.52, "vida_p": 35.0, "andritz": "Desenv", "albany": "Sim", "voith": "Desenv", "vest_budget": 12.0, "budget_counts": {"Jan": 1.0, "Fev": 1.0, "Mar": 1.0, "Abr": 1.0, "Mai": 1.0, "Jun": 1.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 1.0, "Dez": 1.0}, "standard_counts": {"Jan": 1.0, "Fev": 1.0, "Mar": 1.0, "Abr": 1.0, "Mai": 1.0, "Jun": 1.0, "Jul": 1.0, "Ago": 1.0, "Set": 1.0, "Out": 1.0, "Nov": 1.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO 2ª PRENSA", "valor": 22921.16, "vida_p": 64.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 7.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 1.0, "Ago": 1.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA INFERIOR", "valor": 39798.54, "vida_p": 366.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA SUPERIOR", "valor": 39798.54, "vida_p": 418.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "2ª BATERIA INFERIOR", "valor": 30635.61, "vida_p": 310.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "2ª BATERIA SUPERIOR", "valor": 29571.89, "vida_p": 315.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA INFERIOR", "valor": 30635.61, "vida_p": 305.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA SUPERIOR", "valor": 29571.89, "vida_p": 348.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA SUPERIOR", "valor": 27019.52, "vida_p": 320.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA INFERIOR", "valor": 30635.61, "vida_p": 285.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "5ª BATERIA INFERIOR", "valor": 30635.61, "vida_p": 403.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "5ª BATERIA SUPERIOR", "valor": 20393.51, "vida_p": 360.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "6ª BATERIA INFERIOR", "valor": 30635.61, "vida_p": 320.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}]}, "MP6": {"monthly_cost": {"budget": {"Jan": 328699.66000000003, "Fev": 693767.45, "Mar": 180988.17, "Abr": 273402.60000000003, "Mai": 243702.59000000003, "Jun": 886681.72, "Jul": 180988.17, "Ago": 299969.41000000003, "Set": 288739.74, "Out": 674010.03, "Nov": 387129.92000000004, "Dez": 367454.84}, "standard": {"Jan": 387129.92000000004, "Fev": 874755.6200000001, "Mar": 147711.49, "Abr": 395960.51, "Mai": 0.0, "Jun": 767475.9, "Jul": 311188.02, "Ago": 469963.55000000005, "Set": 302132.85000000003, "Out": 175012.42, "Nov": 854998.2, "Dez": 180988.17}, "real": {"Jan": 789758.55, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, "rows": [{"posicao": "TELA FORMADORA", "valor": 393798.04, "vida_p": 124.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 3.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO PICK-UP", "valor": 180988.17, "vida_p": 50.0, "andritz": "Desenv", "albany": "Sim", "voith": "Não", "vest_budget": 6.0, "budget_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 1.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 1.0, "Dez": 1.0}, "real_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "FELTRO 2ª PRENSA", "valor": 129975.27, "vida_p": 55.0, "andritz": "Desenv", "albany": "Sim", "voith": "Não", "vest_budget": 5.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 1.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA SUPERIOR", "valor": 62714.42, "vida_p": 204.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "2ª BATERIA SUPERIOR", "valor": 62714.42, "vida_p": 156.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 3.0, "budget_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 1.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA SUPERIOR", "valor": 62714.42, "vida_p": 187.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA SUPERIOR", "valor": 67485.43, "vida_p": 247.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 1.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "5ª BATERIA SUPERIOR", "valor": 45037.15, "vida_p": 334.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "1ª BATERIA INFERIOR", "valor": 65239.65, "vida_p": 336.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "2ª BATERIA INFERIOR", "valor": 84997.07, "vida_p": 187.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "3ª BATERIA INFERIOR", "valor": 84997.07, "vida_p": 161.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 3.0, "budget_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 1.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "4ª BATERIA INFERIOR", "valor": 84997.07, "vida_p": 206.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 1.0, "Nov": 0.0, "Dez": 0.0}, "standard_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "5ª BATERIA INFERIOR", "valor": 84997.07, "vida_p": 173.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 0.0, "Fev": 1.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "6ª BATERIA INFERIOR", "valor": 58430.26, "vida_p": 233.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 2.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 1.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 1.0, "Dez": 0.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 1.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}, {"posicao": "7ª BATERIA INFERIOR", "valor": 84997.07, "vida_p": 197.0, "andritz": "Sim", "albany": "Sim", "voith": "Não", "vest_budget": 1.0, "budget_counts": {"Jan": 0.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 1.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 1.0}, "standard_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 1.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}, "real_counts": {"Jan": 1.0, "Fev": 0.0, "Mar": 0.0, "Abr": 0.0, "Mai": 0.0, "Jun": 0.0, "Jul": 0.0, "Ago": 0.0, "Set": 0.0, "Out": 0.0, "Nov": 0.0, "Dez": 0.0}}]}};
+
+// ---------- helpers ----------
+function brl(x) {
+  if (x === null || x === undefined || isNaN(x)) return "—";
+  return x.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+function num(x) {
+  if (x === null || x === undefined || isNaN(x)) return "—";
+  return x.toLocaleString('pt-BR');
+}
+function clsByValue(x){
+  if (x > 0) return "delta-pos";   // positivo -> verde e negrito
+  if (x < 0) return "delta-neg";   // negativo -> vermelho e sublinhado
+  return "";
+}
+function arrowIcon(x){
+  if (x === null || x === undefined || isNaN(x) || x === 0) return "";
+  return (x > 0) ? "↑" : "↓";
+}
+
+
+function deltaChip(x){
+  if (x === null || x === undefined || isNaN(x)) return "";
+  if (x === 0) return "<span class='delta-chip chip-flat'>•</span>";
+  const cls = (x > 0) ? "chip-up" : "chip-down";
+  const sym = (x > 0) ? "▲" : "▼";
+  return "<span class='delta-chip " + cls + "'>" + sym + "</span>";
+}
+function sumCounts(obj, month) {
+  if (month === "ALL") return MONTHS.reduce((acc, mo)=>acc + (obj[mo]||0), 0);
+  return obj[month] || 0;
+}
+
+    // show only current month for Real bars (avoid visual clutter)
+    function maskToCurrentMonth(arr){
+      let lastIdx = -1;
+      for (let i=0;i<arr.length;i++){
+        if (arr[i] && arr[i] !== 0) lastIdx = i;
+      }
+      return arr.map((v,i)=> (i===lastIdx ? v : null));
+    }
+
+function cumulative(arr){
+  let s=0; return arr.map(v=> (s+=v));
+}
+
+function detectDelimiter(line) {
+  const comma=(line.match(/,/g)||[]).length;
+  const semi=(line.match(/;/g)||[]).length;
+  const tab=(line.match(/\t/g)||[]).length;
+  return (semi>=comma && semi>=tab) ? ";" : (tab>=comma ? "\t" : ",");
+}
+
+// CSV parser with quotes
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim().length);
+  if(!lines.length) return {rows:[], delim:","};
+  const delim = detectDelimiter(lines[0]);
+  const rows = [];
+  for (const line of lines) {
+    const out=[];
+    let cur="", inQ=false;
+    for (let i=0;i<line.length;i++) {
+      const ch=line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur+='"'; i++; }
+        else inQ = !inQ;
+      } else if (!inQ && ch === delim) {
+        out.push(cur); cur="";
+      } else {
+        cur+=ch;
+      }
+    }
+    out.push(cur);
+    rows.push(out.map(s=>s.trim()));
+  }
+  return {rows, delim};
+}
+
+
+function parseRealCodes(v){
+  if (v === null || v === undefined) return [];
+  const s = String(v).trim();
+  if (!s || s === "0" || s === "-" || s.toLowerCase() === "nan") return [];
+  const norm = s.replace(/\s*\+\s*/g, ";")
+                .replace(/\s*\/\s*/g, ";")
+                .replace(/\s*\|\s*/g, ";")
+                .replace(/\s*,\s*/g, ";")
+                .replace(/\s*;\s*/g, ";")
+                .replace(/\s*\n\s*/g, ";");
+  return norm.split(";").map(x=>x.trim()).filter(Boolean);
+}
+
+function toNumberBRL(s) {
+  if (s===null || s===undefined) return NaN;
+  let t = String(s).trim();
+  if (!t) return NaN;
+  t = t.replace(/R\$\s?/gi,"").trim();
+  if (t.includes(",") && t.includes(".")) t = t.replace(/\./g,"").replace(",",".");
+  else if (t.includes(",") && !t.includes(".")) t = t.replace(",",".");
+  const n = Number(t);
+  return isFinite(n) ? n : NaN;
+}
+
+// Build dataset from CSV (two-row header OR flat header)
+
+function buildFromCSV(text){
+  // Parser for new gerencial CSV (2 header rows):
+  // row0 sections: Homologação | Valor Budget | Valor Standard | Troca Real | Valor Real
+  // row1 columns: (Maquina) | Posição | ... | months Jan..Dez repeated for each section
+  const cleaned = (text||"").replace(/^\uFEFF/, "");
+  const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
+  if (lines.length < 3) throw new Error("CSV inválido: precisa ter 2 linhas de cabeçalho + dados.");
+
+  const splitRow = (line)=>{
+    const out = [];
+    let cur = "", inQ = false;
+    for (let i=0;i<line.length;i++){
+      const ch = line[i];
+      if (ch === '"'){ inQ = !inQ; continue; }
+      if (ch === ';' && !inQ){ out.push(cur); cur=""; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out.map(s => (s||"").trim());
+  };
+
+  const headA = splitRow(lines[0]);
+  const headB = splitRow(lines[1]);
+
+  // forward-fill section names from headA (ignore Unnamed/empty)
+  const sec = [];
+  let cur = "";
+  for (let j=0;j<headA.length;j++){
+    let s = (headA[j]||"").trim().replace(/^\uFEFF/, "");
+    if (s && /^unnamed/i.test(s)) s = "";
+    if (s) cur = s;
+    sec[j] = cur;
+  }
+
+  const normalizeMonth = (v)=>{
+    const s = (v||"").toString().trim().toLowerCase();
+    const map = {
+      "jan":"Jan","janeiro":"Jan",
+      "fev":"Fev","fevereiro":"Fev",
+      "mar":"Mar","março":"Mar","marco":"Mar",
+      "abr":"Abr","abril":"Abr",
+      "mai":"Mai","maio":"Mai",
+      "jun":"Jun","junho":"Jun",
+      "jul":"Jul","julho":"Jul",
+      "ago":"Ago","agosto":"Ago",
+      "set":"Set","setembro":"Set",
+      "out":"Out","outubro":"Out",
+      "nov":"Nov","novembro":"Nov",
+      "dez":"Dez","dezembro":"Dez"
+    };
+    return map[s] || "";
+  };
+
+  const keys = headB.map((h,j)=>{
+    const hh = (h||"").trim().replace(/^\uFEFF/, "");
+    const s = (sec[j]||"").toLowerCase();
+
+    // first columns
+    if (j === 0) return "Maquina";
+    if (hh.toLowerCase() === "posição" || hh.toLowerCase()==="posicao") return "Posicao";
+    if (hh.toLowerCase() === "vida estimada p" || hh.toLowerCase() === "vida p") return "VIDA_P";
+
+    // Homologação / metadata columns
+    if (s.includes("homolog")) {
+      const hl = hh.toLowerCase();
+      if (hl === "andritz") return "ANDRITZ";
+      if (hl === "albany") return "ALBANY";
+      if (hl === "voith") return "VOITH";
+      if (hl === "vida estimada p" || hl === "vida p") return "VIDA_P";
+      if (hl === "vestimentas calculadas") return "VEST_CALC";
+      if (hl === "vestimentas budget") return "VEST_BUDGET";
+      return "HOMO_"+hh;
+    }
+
+    // month blocks
+    const mo = normalizeMonth(hh);
+    if (!mo) return hh || ("COL_"+j);
+
+    if (s.includes("valor budget")) return "BUDGETR$_"+mo;
+    if (s.includes("valor standard")) return "STANDARDR$_"+mo;
+    if (s.includes("troca real")) return "REALCODE_"+mo;
+    if (s.includes("valor real")) return "REALR$_"+mo;
+
+    return hh || ("COL_"+j);
+  });
+
+  const rows = [];
+  for (let i=2;i<lines.length;i++){
+    const r = splitRow(lines[i]);
+    if (!r.length) continue;
+    const obj = {};
+    for (let j=0;j<keys.length;j++){
+      const k = keys[j];
+      if (!k) continue;
+      obj[k] = (r[j]===undefined ? "" : r[j]);
+    }
+    if ((obj.Maquina||"").toString().trim() && (obj.Posicao||"").toString().trim()){
+      rows.push(obj);
+    }
+  }
+  if (!rows.length) throw new Error("Nenhuma linha de dados válida encontrada.");
+  return buildFromObjects(rows);
+}
+
+
+function buildFromFlat(cols, data) {
+  const rows = data.map(r => {
+    const obj={};
+    cols.forEach((c,i)=> obj[c]= (r[i]===undefined? "" : r[i]));
+    return obj;
+  });
+  return buildFromObjects(rows);
+}
+
+
+function buildFromObjects(rows){
+  // Build RAW per machine, with monthly costs already in R$.
+  const out = {};
+  const getMach = (v)=> (v||"").toString().trim();
+  const getPos  = (v)=> (v||"").toString().trim();
+
+  rows.forEach(r=>{
+    const mach = getMach(r.Maquina || r.maquina || r.MAQUINA);
+    const pos  = getPos(r.Posicao || r["Posição"] || r.posicao || r["posição"]);
+    if (!mach || !pos) return;
+
+    if (!out[mach]){
+      out[mach] = { rows: [], monthly_cost: {budget:{}, standard:{}, real:{}} };
+      MONTHS.forEach(mo=>{
+        out[mach].monthly_cost.budget[mo]=0;
+        out[mach].monthly_cost.standard[mo]=0;
+        out[mach].monthly_cost.real[mo]=0;
+      });
+    }
+
+    // infer fornecedor as first "Sim" among homologation columns
+    let fornecedor = "";
+    try{
+      const a = (r["ANDRITZ"]||"").toString().toLowerCase();
+      const b = (r["ALBANY"]||"").toString().toLowerCase();
+      const v = (r["VOITH"]||"").toString().toLowerCase();
+      if (a.startsWith("sim")) fornecedor = "Andritz";
+      else if (b.startsWith("sim")) fornecedor = "Albany";
+      else if (v.startsWith("sim")) fornecedor = "Voith";
+    }catch(e){}
+
+    const row = {
+      maquina: mach,
+      posicao: pos,
+      fornecedor: fornecedor,
+      vestimenta: "",     // não existe no CSV novo
+      valor: 1,           // usado como multiplicador para tratar budget/standard como valores (R$) diretamente
+      budget_counts: {},  // aqui vamos armazenar COST (R$) para reusar o layout existente
+      standard_counts: {},
+      real_counts: {},    // aqui armazenamos QTD (contagem de códigos)
+      real_values: {},    // aqui armazenamos COST REAL (R$)
+      real_codes: {}
+    };
+
+    MONTHS.forEach(mo=>{
+      const b = toNumberBRL(r["BUDGETR$_"+mo] ?? r["Valor Budget_"+mo] ?? 0) || 0;
+      const s = toNumberBRL(r["STANDARDR$_"+mo] ?? r["Valor Standard_"+mo] ?? 0) || 0;
+      const rv = toNumberBRL(r["REALR$_"+mo] ?? r["Valor Real_"+mo] ?? 0) || 0;
+
+      const codes = parseRealCodes(r["REALCODE_"+mo] ?? r["Troca Real_"+mo] ?? "");
+      row.real_codes[mo] = codes.join(", ");
+      row.real_counts[mo] = codes.length;
+
+      row.budget_counts[mo] = b;
+      row.standard_counts[mo] = s;
+      row.real_values[mo] = rv;
+
+      out[mach].monthly_cost.budget[mo]   += b;
+      out[mach].monthly_cost.standard[mo] += s;
+      out[mach].monthly_cost.real[mo]     += rv;
+    });
+
+    out[mach].rows.push(row);
+  });
+
+  // Build synthetic machine "TODOS" (all MPs together)
+  try {
+    const allKeys = Object.keys(out).filter(k => k !== "TODOS");
+    if (allKeys.length) {
+      const merged = { rows: [], monthly_cost: {budget:{}, standard:{}, real:{}} };
+      MONTHS.forEach(mo=>{
+        merged.monthly_cost.budget[mo]=0;
+        merged.monthly_cost.standard[mo]=0;
+        merged.monthly_cost.real[mo]=0;
+      });
+
+      allKeys.forEach(mk=>{
+        MONTHS.forEach(mo=>{
+          merged.monthly_cost.budget[mo]   += out[mk].monthly_cost.budget[mo]||0;
+          merged.monthly_cost.standard[mo] += out[mk].monthly_cost.standard[mo]||0;
+          merged.monthly_cost.real[mo]     += out[mk].monthly_cost.real[mo]||0;
+        });
+        (out[mk].rows||[]).forEach(r=>{
+          const rr = Object.assign({}, r);
+          rr.posicao = mk + " - " + (rr.posicao||"");
+          merged.rows.push(rr);
+        });
+      });
+
+      out["TODOS"] = merged;
+    }
+  } catch(e) {}
+
+  return out;
+}
+
+
+// ---------- UI ----------
+function buildPane(machine, isActive) {
+  return `
+  <div class="tab-pane fade ${isActive ? "show active" : ""}" id="pane-${machine}" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label mb-1">Mês</label>
+              <select class="form-select" id="${machine}-month">
+                <option value="ALL" selected>Todos (YTD)</option>
+                ${MONTHS.map(m=>`<option value="${m}">${m}</option>`).join("")}
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label mb-1">Posição</label>
+              <select class="form-select" id="${machine}-pos">
+                <option value="ALL" selected>Todas</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label mb-1">Busca rápida</label>
+              <input class="form-control" id="${machine}-search" placeholder="Ex.: pick-up, tela, andritz...">
+              <div class="small-muted mt-1">Filtra por texto (posição + fornecedores).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+<div class="col-md-4"><div class="card p-3 kpi"><div class="small-muted">Budget (R$)</div><div class="display-6 mono" id="${machine}-kpi-budget">—</div></div></div>
+      <div class="col-md-4"><div class="card p-3 kpi"><div class="small-muted">Standard (R$)</div><div class="display-6 mono" id="${machine}-kpi-standard">—</div></div></div>
+      <div class="col-md-4"><div class="card p-3 kpi"><div class="small-muted">Real (R$)</div><div class="display-6 mono" id="${machine}-kpi-real">—</div></div></div>
+
+      <div class="col-md-6"><div class="card p-3 kpi"><div class="small-muted">Δ Budget − Standard</div><div class="display-6 mono" id="${machine}-kpi-var-std">—</div></div></div>
+      <div class="col-md-6"><div class="card p-3 kpi"><div class="small-muted">Δ Budget − Real</div><div class="display-6 mono" id="${machine}-kpi-var-real">—</div></div></div>
+
+
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="h6 mb-1">Budget × Standard × Real por mês</div>
+          <div class="small-muted mb-2">Custo = quantidade × valor unitário</div>
+          <div class="chart-wrap" id="${machine}-chart" style="height:420px; min-height:420px;"></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="h6 mb-1">Acumulado no ano (Budget × Standard × Real)</div>
+          <div class="small-muted mb-2">Evolução do valor acumulado das trocas ao longo dos meses</div>
+          <div class="chart-wrap" id="${machine}-cumchart" style="height:420px; min-height:420px;"></div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="h6 mb-1">Detalhe por posição</div>
+          <div class="small-muted mb-2">Coluna <b>dif</b> removida (foco em Budget × Standard × Real).</div>
+          
+          <div class="row g-2 mb-2">
+            <div class="col-md-4">
+              <input class="form-control form-control-sm" id="${machine}-tbl-search" placeholder="Filtrar na tabela (posição/fornecedor)...">
+            </div>
+            <div class="col-md-2">
+              <select class="form-select form-select-sm" id="${machine}-tbl-vendor">
+                <option value="ALL" selected>Fornecedor: Todos</option>
+                <option value="ANDRITZ">Andritz</option>
+                <option value="ALBANY">Albany</option>
+                <option value="VOITH">Voith</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select form-select-sm" id="${machine}-tbl-real-sign">
+                <option value="ALL" selected>Budget − Real: Todos</option>
+                <option value="POS">Só + (verde)</option>
+                <option value="NEG">Só − (vermelho)</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select form-select-sm" id="${machine}-tbl-std-sign">
+                <option value="ALL" selected>Budget − Standard: Todos</option>
+                <option value="POS">Só + (verde)</option>
+                <option value="NEG">Só − (vermelho)</option>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="${machine}-tbl-only-swaps">
+                <label class="form-check-label small-muted" for="${machine}-tbl-only-swaps">
+                  Mostrar apenas posições com troca no mês
+                </label>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="table-responsive" style="max-height:520px;">
+            <table class="table table-sm table-striped table-hover align-middle table-detail" id="${machine}-table">
+              <thead>
+                <tr>
+                  <th>Posição</th>
+                  
+                  
+                  
+                  <th class="text-end sticky-head2">Vest. Budget</th>
+                  <th class="text-end">Budget (qtd)</th>
+                  <th class="text-end">Standard (qtd)</th>
+                  <th class="text-end">Real (qtd)</th>
+                  <th class="text-end">Budget − Standard (R$)</th>
+                  <th class="text-end">Budget − Real (R$)</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="footer-note mt-2">Vermelho = acima do Budget • Verde = abaixo do Budget (Δ).</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDashboard() {
+  const order = ["TODOS","MP1","MP3","MP6"];
+  const machines = Object.keys(RAW).sort((a,b)=>{
+    const ia = order.indexOf(a); const ib = order.indexOf(b);
+    if (ia !== -1 || ib !== -1) return (ia===-1? 99:ia) - (ib===-1? 99:ib);
+    return a.localeCompare(b);
+  });
+  const tabs = document.getElementById("machineTabs");
+  const content = document.getElementById("machineTabContent");
+  tabs.innerHTML=""; content.innerHTML="";
+
+  if (!machines.length) {
+    document.getElementById("status").textContent = "Nenhum dado reconhecido no CSV.";
+    return;
+  }
+
+  machines.forEach((m,i)=> {
+    tabs.insertAdjacentHTML("beforeend",
+      `<li class="nav-item" role="presentation">
+        <button class="nav-link ${i===0?"active":""}" data-bs-toggle="pill" data-bs-target="#pane-${m}" type="button" role="tab">${m}</button>
+      </li>`);
+    content.insertAdjacentHTML("beforeend", buildPane(m, i===0));
+  });
+
+  machines.forEach(m => initMachine(m));
+}
+
+function initMachine(machine) {
+  const posSel = document.getElementById(machine + "-pos");
+  const monthSel = document.getElementById(machine + "-month");
+  const searchIn = document.getElementById(machine + "-search");
+  const table = document.getElementById(machine + "-table");
+  const tblSearch = document.getElementById(machine + "-tbl-search");
+  const tblVendor = document.getElementById(machine + "-tbl-vendor");
+  const tblRealSign = document.getElementById(machine + "-tbl-real-sign");
+  const tblStdSign = document.getElementById(machine + "-tbl-std-sign");
+  const tblOnlySwaps = document.getElementById(machine + "-tbl-only-swaps");
+  let sortState = null;
+
+  const positions = Array.from(new Set(RAW[machine].rows.map(r => r.posicao))).filter(Boolean)
+    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  positions.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    posSel.appendChild(opt);
+  });
+
+  const chartId = machine + "-chart";
+  const cumId = machine + "-cumchart";
+
+  function computeMonthlyFromFilter(posFilter, textFilter){
+    const out = {budget: Object.fromEntries(MONTHS.map(m=>[m,0])),
+                 standard: Object.fromEntries(MONTHS.map(m=>[m,0])),
+                 real: Object.fromEntries(MONTHS.map(m=>[m,0]))};
+    RAW[machine].rows.forEach(r=>{
+      if (posFilter !== "ALL" && r.posicao !== posFilter) return;
+      if (textFilter) {
+        const t=textFilter.toLowerCase();
+        const blob=(r.posicao + " " + (r.andritz||"") + " " + (r.albany||"") + " " + (r.voith||"")).toLowerCase();
+        if(!blob.includes(t)) return;
+      }
+      MONTHS.forEach(mo=>{
+        // Novo CSV: Budget/Standard já vêm em R$ no mês; Real (R$) vem do bloco Valor Real (real_values).
+        out.budget[mo]   += (r.budget_counts?.[mo]||0);
+        out.standard[mo] += (r.standard_counts?.[mo]||0);
+        out.real[mo]     += (r.real_values?.[mo]||0);
+      });
+    });
+    return out;
+  }
+
+  function computeRealMonthBreakdown(posFilter, textFilter){
+    // Returns:
+    //  - monthSpend: [R$ gasto no mes] (não acumulado)
+    //  - monthItems: [string] com o que foi trocado no mês (top por custo)
+    const monthSpend = MONTHS.map(()=>0);
+    const monthMap = Object.fromEntries(MONTHS.map(mo=>[mo, []])); // mo -> [{pos, qtd, custo}]
+    RAW[machine].rows.forEach(r=>{
+      if (posFilter !== "ALL" && r.posicao !== posFilter) return;
+      if (textFilter) {
+        const t=textFilter.toLowerCase();
+        const blob=(r.posicao + " " + (r.andritz||"") + " " + (r.albany||"") + " " + (r.voith||"")).toLowerCase();
+        if(!blob.includes(t)) return;
+      }
+      MONTHS.forEach((mo,idx)=>{
+        const rq = (r.real_counts?.[mo]||0);
+        if (!rq) return;
+        const custo = (r.real_values?.[mo]||0);
+        monthSpend[idx] += custo;
+        monthMap[mo].push({pos:r.posicao, qtd:rq, custo:custo});
+      });
+    });
+
+    const monthItems = MONTHS.map((mo, idx)=>{
+      const items = monthMap[mo] || [];
+      if (!items.length) return "";
+      items.sort((a,b)=> (b.custo||0)-(a.custo||0));
+      const top = items.slice(0,6).map(it=>{
+        const c = brl(it.custo);
+        return `${it.pos} (${num(it.qtd)}) — ${c}`;
+      }).join("<br>");
+      const extra = items.length > 6 ? `<br><span style="opacity:.75">+${items.length-6} itens…</span>` : "";
+      return top + extra;
+    });
+
+    return {monthSpend, monthItems};
+  }
+
+  
+
+function drawCharts(monthly, rb){
+    const x = MONTHS;
+
+    const yBudget = x.map(mo=>monthly.budget[mo]||0);
+    const yStandard = x.map(mo=>monthly.standard[mo]||0);
+    const yReal = x.map(mo=>monthly.real[mo]||0);
+
+    // Δ Budget - Real (only when Real exists)
+    const yDelta = yBudget.map((b,i)=> {
+      const r = yReal[i]||0;
+      if (!r) return null; // hide when no real value
+      return b - r;
+    });
+    const deltaColors = yDelta.map(v => v===null ? "rgba(0,0,0,0)" : (v < 0 ? "#b42318" : "#067647"));
+
+    Plotly.react(chartId,
+      [
+        {x, y:yBudget, type:"bar", name:"Budget", marker:{color:"#000000"}},
+        {x, y:yStandard, type:"bar", name:"Standard"},
+        {
+          x,
+          y: yReal,
+          type:"bar",
+          name:"Real",
+          marker:{color: yReal.map((v,i)=> (v > (yBudget[i]||0)) ? "#b42318" : "#067647")},
+          text: yReal.map(v => (v && v !== 0) ? brl(v) : ""),
+          textposition:"outside",
+          hoverlabel:{bgcolor: yReal.map((v,i)=> (v > (yBudget[i]||0)) ? "#b42318" : "#067647"), font:{color:"#ffffff"}},
+          hovertemplate:
+            "<b>%{x}</b><br>" +
+            "Real (mês): %{y:,.0f}<br>" +
+            "Budget (mês): %{customdata:,.0f}<br>" +
+            "<extra></extra>",
+          customdata: yBudget
+        }
+      ],
+      {
+        barmode:"group",
+        margin:{l:72,r:48,t:18,b:58},
+        xaxis:{automargin:true}, yaxis:{tickformat:",.0f", zeroline:true, zerolinewidth:2, automargin:true},
+        legend:{orientation:"h", y:1.12}
+      },
+      {displayModeBar:false, responsive:true}
+    );
+
+    const b = yBudget;
+    const s = yStandard;
+    const r = yReal;
+
+    const cumB = cumulative(b);
+    const cumR = cumulative(r);
+
+    // Cor condicional do Real no acumulado: vermelho se Real acumulado > Budget acumulado, verde caso contrario.
+    // Meses sem gasto Real ficam transparentes (nao polui).
+    const realBarColors = MONTHS.map((mo,i)=>{
+      const spent = r[i] || 0;
+      if (!spent) return "rgba(0,0,0,0)";
+      return (cumR[i] > cumB[i]) ? "#b42318" : "#067647";
+    });
+
+    Plotly.react(cumId,
+      [
+        // Budget em linha (preto)
+        {x, y:cumulative(b), type:"scatter", mode:"lines+markers", name:"Budget", line:{color:"#000000"}, marker:{color:"#000000"}},
+        // Standard mantém como linha de referência
+        {x, y:cumulative(s), type:"scatter", mode:"lines+markers", name:"Standard"},
+        // Real em "escadinha" (step) com label só quando houver gasto no mês
+        {
+          x,
+          y: cumR,
+          type:"bar",
+          name:"Real",
+          marker:{color: realBarColors},
+          hoverlabel:{bgcolor: realBarColors, font:{color:"#ffffff"}},
+          // label dentro da barra: gasto do mês (não acumulado) — só aparece quando houver gasto
+          text: cumR.map((v,i)=> ((r[i]||0) ? brl(v) : "")),
+          textposition:"inside",
+          insidetextanchor:"middle",
+          // tooltip: acumulado + gasto do mês + o que foi trocado
+          customdata: MONTHS.map((mo, i)=> [
+            (rb?.monthSpend ? rb.monthSpend[i] : r[i]) || 0,
+            (rb?.monthItems ? rb.monthItems[i] : "")
+          ]),
+          hovertemplate:
+            "<b>%{x}</b><br>" +
+            "Acumulado Real: %{y:,.0f}<br>" +
+            "Gasto no mês: %{customdata[0]:,.0f}<br>" +
+            "<br><b>Trocas no mês</b><br>%{customdata[1]}" +
+            "<extra></extra>"
+        }
+      ],
+      {
+        margin:{l:72,r:48,t:18,b:58},
+        xaxis:{automargin:true}, yaxis:{tickformat:",.0f", automargin:true},
+        legend:{orientation:"h", y:1.12}
+      },
+      {displayModeBar:false, responsive:true}
+    );
+  }
+
+
+  const colMap = {
+    0: {col:"posicao", type:"text"},
+    1: {col:"valor", type:"num"},
+    2: {col:"vida_p", type:"num"},
+    3: {col:"andritz", type:"text"},
+    4: {col:"albany", type:"text"},
+    5: {col:"voith", type:"text"},
+    6: {col:"vest_budget", type:"num"},
+    7: {col:"bq", type:"num"},
+    8: {col:"sq", type:"num"},
+    9: {col:"rq", type:"num"},
+    10:{col:"std_delta", type:"num"},
+    11:{col:"real_delta", type:"num"},
+  };
+
+  function calcCosts(month, posFilter, textFilter) {
+    let budget=0, standard=0, real=0;
+    RAW[machine].rows.forEach(r => {
+      if (posFilter !== "ALL" && r.posicao !== posFilter) return;
+      if (textFilter) {
+        const t = textFilter.toLowerCase();
+        const blob = (r.posicao + " " + (r.andritz||"") + " " + (r.albany||"") + " " + (r.voith||"")).toLowerCase();
+        if (!blob.includes(t)) return;
+      }
+      // Novo CSV: Budget/Standard já vêm em R$ por mês; Real (R$) vem do bloco Valor Real.
+      budget += sumCounts(r.budget_counts, month);
+      standard += sumCounts(r.standard_counts, month);
+      real += sumCounts((r.real_values||{}), month);
+    });
+    return {
+      budget, standard, real,
+      var_std: (budget - standard),
+      var_real: (budget - real)
+    };
+  }
+
+  function renderTable(month, posFilter, textFilter) {
+    const tbody = table.querySelector("tbody");
+    tbody.innerHTML = "";
+
+    const tSearch = (tblSearch?.value || "").trim().toLowerCase();
+    const vFilter = (tblVendor?.value || "ALL");
+    const realSign = (tblRealSign?.value || "ALL");
+    const stdSign = (tblStdSign?.value || "ALL");
+    const onlySwaps = !!(tblOnlySwaps?.checked);
+
+    let rows = RAW[machine].rows.filter(r => {
+      if (posFilter !== "ALL" && r.posicao !== posFilter) return false;
+      if (textFilter) {
+        const t = textFilter.toLowerCase();
+        const blob = (r.posicao + " " + (r.andritz||"") + " " + (r.albany||"") + " " + (r.voith||"")).toLowerCase();
+        if (!blob.includes(t)) return false;
+      }
+      return true;
+    });
+
+    const computed = rows.map(r => {
+      // Novo CSV: budget_counts/standard_counts já estão em R$ (mensal); Real (R$) vem de real_values.
+      const bq = sumCounts(r.budget_counts, month);    // aqui é Budget (R$)
+      const sq = sumCounts(r.standard_counts, month);  // aqui é Standard (R$)
+      const rq = sumCounts(r.real_counts, month);      // quantidade de trocas (códigos)
+      const bCost = bq;
+      const sCost = sq;
+      const rCost = sumCounts((r.real_values||{}), month); // Real (R$)
+      return Object.assign({}, r, {bq, sq, rq, bCost, sCost, rCost, std_delta: (bCost - sCost), real_delta: (bCost - rCost)});
+    });
+
+    // filtros da tabela (não afetam KPIs/gráficos)
+    let filtered = computed.filter(r => {
+      // opcional: ocultar linhas sem trocas no mês selecionado
+      if (onlySwaps && month !== "ALL") {
+        if (((r.bq||0)===0) && ((r.sq||0)===0) && ((r.rq||0)===0)) return false;
+      }
+
+      // texto
+      if (tSearch) {
+        const blob = (r.posicao + " " + (r.andritz||"") + " " + (r.albany||"") + " " + (r.voith||"")).toLowerCase();
+        if (!blob.includes(tSearch)) return false;
+      }
+      // fornecedor
+      if (vFilter !== "ALL") {
+        if (vFilter === "ANDRITZ" && !(String(r.andritz||"").toLowerCase().startsWith("s"))) return false;
+        if (vFilter === "ALBANY"  && !(String(r.albany||"").toLowerCase().startsWith("s"))) return false;
+        if (vFilter === "VOITH"   && !(String(r.voith||"").toLowerCase().startsWith("s"))) return false;
+      }
+      // sinais
+      if (realSign === "POS" && !((r.real_delta||0) > 0)) return false;
+      if (realSign === "NEG" && !((r.real_delta||0) < 0)) return false;
+      if (stdSign  === "POS" && !((r.std_delta||0)  > 0)) return false;
+      if (stdSign  === "NEG" && !((r.std_delta||0)  < 0)) return false;
+      return true;
+    });
+
+    function sortText(a,b) { return (a||"").toString().localeCompare((b||"").toString(),'pt-BR'); }
+    function sortNum(a,b) { return (Number(a||0) - Number(b||0)); }
+
+    if (sortState && sortState.col) {
+      const {col, dir, type} = sortState;
+      filtered.sort((A,B)=> {
+        const cmp = (type==="text") ? sortText(A[col], B[col]) : sortNum(A[col], B[col]);
+        return dir==="asc" ? cmp : -cmp;
+      });
+    } else {
+      filtered.sort((a,b)=> (b.real_delta||0) - (a.real_delta||0));
+    }
+
+    filtered.forEach(r => {
+const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td class='sticky-col'>" + r.posicao + "</td>" +
+        "<td class='text-end mono sticky-col2'>" + num(r.vest_budget) + "</td>" +
+        "<td class='text-end mono'>" + num(r.bq) + "</td>" +
+        "<td class='text-end mono'>" + num(r.sq) + "</td>" +
+        "<td class='text-end mono'>" + num(r.rq) + "</td>" +
+        "<td class='text-end mono " + clsByValue(r.std_delta) + "'>" + brl(r.std_delta) + "</td>" +
+        "<td class='text-end mono " + clsByValue(r.real_delta) + "'>" + brl(r.real_delta) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refresh() {
+    const month = monthSel.value;
+    const posFilter = posSel.value;
+    const textFilter = (searchIn.value||"").trim();
+
+    const k = calcCosts(month, posFilter, textFilter);
+    document.getElementById(machine + "-kpi-budget").textContent = brl(k.budget);
+    document.getElementById(machine + "-kpi-standard").textContent = brl(k.standard);
+    document.getElementById(machine + "-kpi-real").textContent = brl(k.real);
+    const stdVar = k.var_std;
+    const stdEl = document.getElementById(machine + "-kpi-var-std");
+    stdEl.textContent = brl(stdVar);
+    stdEl.style.color = (stdVar < 0) ? "#b42318" : "#067647";
+
+    const realVar = k.var_real;
+    const realEl = document.getElementById(machine + "-kpi-var-real");
+    realEl.textContent = brl(realVar);
+    realEl.style.color = (realVar < 0) ? "#b42318" : "#067647";
+
+const monthly = computeMonthlyFromFilter(posFilter, textFilter);
+    const rb = computeRealMonthBreakdown(posFilter, textFilter);
+    drawCharts(monthly, rb);
+    renderTable(month, posFilter, textFilter);
+  }
+
+  Array.from(table.querySelectorAll("thead th")).forEach((th, idx)=> {
+    th.style.cursor = "pointer";
+    th.addEventListener("click", ()=> {
+      const map = colMap[idx];
+      if (!map) return;
+      if (sortState && sortState.col === map.col) {
+        sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+      } else {
+        sortState = {col: map.col, dir: (map.type==="text" ? "asc" : "desc"), type: map.type};
+      }
+      refresh();
+    });
+  });
+
+  monthSel.addEventListener("change", refresh);
+  posSel.addEventListener("change", refresh);
+  searchIn.addEventListener("input", refresh);
+  tblSearch?.addEventListener("input", refresh);
+  tblVendor?.addEventListener("change", refresh);
+  tblRealSign?.addEventListener("change", refresh);
+  tblStdSign?.addEventListener("change", refresh);
+  tblOnlySwaps?.addEventListener("change", refresh);
+  refresh();
+}
+
+// Load file and rebuild
+document.getElementById("fileInput").addEventListener("change", async (ev)=> {
+  const f = ev.target.files?.[0];
+  if (!f) return;
+  document.getElementById("status").textContent = "Lendo CSV…";
+  const text = await f.text();
+  const built = buildFromCSV(text);
+  const machines = Object.keys(built);
+  if (!machines.length) {
+    document.getElementById("status").textContent = "Nenhum dado reconhecido. Confira o formato do CSV.";
+    return;
+  }
+  RAW = built;
+  document.getElementById("status").textContent = "OK • " + machines.sort().join(", ");
+  renderDashboard();
+});
+
+document.getElementById("lastUpdate").textContent = "Atualizado em " + new Date().toLocaleString('pt-BR');
+
+
+// initial render
+renderDashboard();
+
+// Fix Plotly sizing for hidden tabs (MP3/MP6) to keep charts same size as MP1
+function resizePlotsForMachine(m){
+  try {
+    const c1 = document.getElementById(m + "-chart");
+    const c2 = document.getElementById(m + "-cumchart");
+    if (c1) Plotly.Plots.resize(c1);
+    if (c2) Plotly.Plots.resize(c2);
+  } catch(e) {}
+}
+
+document.addEventListener("shown.bs.tab", (ev) => {
+  const btn = ev.target;
+  const tgt = btn?.getAttribute?.("data-bs-target");
+  if (!tgt || !tgt.startsWith("#pane-")) return;
+  const m = tgt.replace("#pane-","");
+  // small delay to allow layout to settle
+  setTimeout(()=>resizePlotsForMachine(m), 50);
+});
+
+// Also resize first active tab after load
+setTimeout(()=> {
+  const activeBtn = document.querySelector("#machineTabs .nav-link.active");
+  const tgt = activeBtn?.getAttribute?.("data-bs-target");
+  if (tgt && tgt.startsWith("#pane-")) resizePlotsForMachine(tgt.replace("#pane-",""));
+}, 150);
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
